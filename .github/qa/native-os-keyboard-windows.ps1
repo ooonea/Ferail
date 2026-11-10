@@ -126,7 +126,7 @@ try {
     $arguments="--navigate `"$Target`" --view list"
     $record.arguments=$arguments
     Add-Type -AssemblyName System.Drawing
-    $app = Start-Process -FilePath $Executable -ArgumentList $arguments -PassThru -RedirectStandardOutput "$Output/stdout.log" -RedirectStandardError "$Output/stderr.log"
+    $app = Start-Process -FilePath $Executable -ArgumentList $arguments -NoNewWindow -PassThru -RedirectStandardOutput "$Output/stdout.log" -RedirectStandardError "$Output/stderr.log"
     $record.pid = $app.Id
     $deadline = [DateTime]::UtcNow.AddSeconds(40)
     do {
@@ -183,6 +183,10 @@ try {
 finally {
     if ($null -ne $app -and -not $app.HasExited) {
         if (-not $app.CloseMainWindow() -or -not $app.WaitForExit(15000)) { $record.cleanup_error='Own app did not close normally; no forced termination attempted.' }
+    }
+    if ($null -ne $app -and $app.HasExited) {
+        $record.app_exit_code=$app.ExitCode
+        if ($app.ExitCode -ne 0) { $record.cleanup_error="Own app exited with code $($app.ExitCode)." }
     }
     $record | ConvertTo-Json -Depth 8 | Set-Content "$Output/manifest.json"
     [void][NativeKeyboardQA]::SetThreadDpiAwarenessContext($oldDpi)
