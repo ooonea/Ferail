@@ -81,6 +81,7 @@ def main():
                                 result = subprocess.run([str(helper), "--close", str(app.pid), str(binary)],
                                                         stdout=log, stderr=subprocess.STDOUT, timeout=45)
                             record["close_returncode"] = result.returncode
+                            assert result.returncode == 0
                         record["app_exit_code"] = app.wait(timeout=20)
                         assert record["app_exit_code"] == 0
             else:

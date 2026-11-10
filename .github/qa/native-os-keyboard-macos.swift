@@ -86,7 +86,7 @@ struct NativeKey {
         }
         try focused()
 
-        func post(_ key: CGKeyCode, flags: CGEventFlags) throws {
+        func postKey(_ key: CGKeyCode, flags: CGEventFlags) throws {
             try focused()
             try require(CGPreflightPostEventAccess(), "Posting permission changed")
             guard let source = CGEventSource(stateID: .privateState),
@@ -104,7 +104,7 @@ struct NativeKey {
                     "events": ["keyDown", "keyUp"], "delivery_acknowledged": false])
         }
         if closing {
-            try post(CGKeyCode(kVK_ANSI_Q), flags: .maskCommand)
+            try postKey(CGKeyCode(kVK_ANSI_Q), flags: .maskCommand)
             return
         }
         let output = URL(fileURLWithPath: CommandLine.arguments[3], isDirectory: true)
@@ -141,7 +141,7 @@ struct NativeKey {
                     "width": image.width, "height": image.height])
         }
         try await screenshot("initial.png")
-        try post(CGKeyCode(kVK_DownArrow), flags: [])
+        try postKey(CGKeyCode(kVK_DownArrow), flags: [])
         try await Task.sleep(nanoseconds: 1_000_000_000)
         advanceMainLoop()
         try await screenshot("down.png")
