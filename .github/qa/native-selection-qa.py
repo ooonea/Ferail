@@ -11,11 +11,15 @@ import subprocess
 import sys
 
 
-SOURCE = "412812228654faa21d08031ad0e9566303f3739d"
+SOURCE = "a586e950776cff46d618a30e890eca9add5dc13d"
 
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def session_lines(text):
+    return [line for line in text.splitlines() if line.partition("=")[0] in {"last_dir", "tab", "tab_active"}]
 
 
 def main():
@@ -84,9 +88,18 @@ def main():
                 except subprocess.TimeoutExpired:
                     record["error"] = "90-second capture deadline exceeded"
             saved = config / "gpui-state.txt"
+            record["session_preserved"] = False
+            record["preference_preserved"] = False
             if saved.is_file():
                 (output / f"{case}-saved.txt").write_bytes(saved.read_bytes())
-            valid = record.get("returncode") == 0 and image.is_file()
+                saved_text = saved.read_text()
+                record["session_preserved"] = session_lines(saved_text) == session_lines(state)
+                record["preference_preserved"] = (
+                    [line for line in saved_text.splitlines() if line.startswith("select_first_item=")]
+                    == [line for line in state.splitlines() if line.startswith("select_first_item=")]
+                )
+            valid = (record.get("returncode") == 0 and image.is_file()
+                     and record["session_preserved"] and record["preference_preserved"])
             if valid:
                 header = image.read_bytes()[:24]
                 valid = header[:8] == b"\x89PNG\r\n\x1a\n" and len(header) == 24
