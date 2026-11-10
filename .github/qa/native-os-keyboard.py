@@ -77,12 +77,25 @@ def main():
                         assert result.returncode == 0
                     finally:
                         if app.poll() is None:
-                            with (case / "close.jsonl").open("wb") as log:
-                                result = subprocess.run([str(helper), "--close", str(app.pid), str(binary)],
-                                                        stdout=log, stderr=subprocess.STDOUT, timeout=45)
-                            record["close_returncode"] = result.returncode
-                            assert result.returncode == 0
-                        record["app_exit_code"] = app.wait(timeout=20)
+                            try:
+                                with (case / "close.jsonl").open("wb") as log:
+                                    result = subprocess.run([str(helper), "--close", str(app.pid), str(binary)],
+                                                            stdout=log, stderr=subprocess.STDOUT, timeout=45)
+                                record["close_returncode"] = result.returncode
+                            except subprocess.TimeoutExpired:
+                                record["close_timeout"] = True
+                        try:
+                            record["app_exit_code"] = app.wait(timeout=20)
+                        except subprocess.TimeoutExpired:
+                            record["forced_cleanup"] = True
+                            app.terminate()
+                            try:
+                                record["app_exit_code"] = app.wait(timeout=10)
+                            except subprocess.TimeoutExpired:
+                                app.kill()
+                                record["app_exit_code"] = app.wait(timeout=10)
+                        assert not record.get("forced_cleanup") and not record.get("close_timeout")
+                        assert record.get("close_returncode", 0) == 0
                         assert record["app_exit_code"] == 0
             else:
                 with (output / f"{preference}.log").open("wb") as log:

@@ -79,9 +79,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: source -> target
+          cache-on-failure: true
       - name: Build pinned upstream source
         working-directory: source
         run: cargo build --locked -p ferail-gpui --bin ferail-gpui
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: native-os-binary-${{ matrix.os }}
+          path: |
+            source/target/debug/ferail-gpui
+            source/target/debug/ferail-gpui.exe
+          if-no-files-found: error
+          retention-days: 3
       - name: Exercise native OS keyboard path
         working-directory: source
         env:

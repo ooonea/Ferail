@@ -70,9 +70,24 @@ struct NativeKey {
         guard let app = launched else { throw Failure(message: "Target did not finish launching") }
         try require(app.executableURL?.resolvingSymlinksInPath() == binary,
                     "PID executable mismatch")
+        var windowReady = false
+        while Date() < deadline {
+            try require(!app.isTerminated, "Target exited before opening its window")
+            let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+            let windows = content.windows.filter {
+                $0.owningApplication?.processID == pid && $0.windowLayer == 0 && $0.isOnScreen &&
+                $0.frame.width > 0 && $0.frame.height > 0
+            }
+            if windows.count == 1 {
+                windowReady = true
+                record(["phase": "window_ready", "pid": pid, "window_id": windows[0].windowID])
+                break
+            }
+            advanceMainLoop()
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        try require(windowReady, "Target did not open one visible normal window before deadline")
         try require(app.activate(options: []), "Application activation refused")
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-        advanceMainLoop()
 
         func focused() throws {
             try require(!app.isTerminated && app.isActive &&
@@ -84,7 +99,22 @@ struct NativeKey {
             try require(result == .success && focusedWindow != nil,
                         "No accessible focused window for target PID")
         }
-        try focused()
+        var focusReady = false
+        while Date() < deadline {
+            advanceMainLoop()
+            do {
+                try focused()
+                focusReady = true
+                break
+            } catch {
+                try require(!app.isTerminated, "Target exited while waiting for focus")
+            }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        record(["phase": "focus_ready", "ready": focusReady, "pid": pid,
+                "active": app.isActive, "hidden": app.isHidden,
+                "front_pid": NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1])
+        try require(focusReady, "Target did not acquire verified focus before deadline")
 
         func postKey(_ key: CGKeyCode, flags: CGEventFlags) throws {
             try focused()
