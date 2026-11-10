@@ -28,7 +28,7 @@ def main():
     system = platform.system()
     if system not in ("Darwin", "Windows"):
         raise SystemExit("Native macOS or Windows is required")
-    expected_arch = "x86_64" if system == "Darwin" else "AMD64"
+    expected_arch = "arm64" if system == "Darwin" else "AMD64"
     if platform.machine() != expected_arch:
         raise SystemExit(f"Unexpected native architecture: {platform.machine()}")
     repo = Path.cwd()

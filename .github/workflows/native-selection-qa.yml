@@ -1,4 +1,4 @@
-name: Native selection captures (0.7.13)
+name: Native ARM64 selection captures (0.7.13)
 
 on:
   push:
@@ -10,13 +10,9 @@ permissions:
 
 jobs:
   capture:
-    name: Native captures (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: Native captures (macos-15 arm64)
+    runs-on: macos-15
     timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-2025, macos-15-intel]
     env:
       CARGO_TERM_COLOR: always
       CARGO_BUILD_JOBS: 2
@@ -41,31 +37,17 @@ jobs:
           test "$(git rev-parse HEAD)" = a586e950776cff46d618a30e890eca9add5dc13d
           actual_arch="$(python3 -c 'import platform; print(platform.machine())')"
           echo "Native architecture: $actual_arch"
-          if [[ "$RUNNER_OS" == macOS ]]; then
-            test "$(uname -m)" = x86_64
-            test "$actual_arch" = x86_64
-          else
-            test "$actual_arch" = AMD64
-          fi
+          test "$(uname -m)" = arm64
+          test "$actual_arch" = arm64
           df -h
-          if [[ "$RUNNER_OS" == macOS ]]; then
-            xcodebuild -version
-            system_profiler SPDisplaysDataType
-            xcrun swift -e 'import Metal; guard let device = MTLCreateSystemDefaultDevice() else { fatalError("No Metal device") }; print("Metal device:", device.name)'
-          else
-            powershell.exe -NoProfile -Command 'Get-CimInstance Win32_VideoController | Format-List Name,DriverVersion,AdapterCompatibility'
-          fi
+          xcodebuild -version
+          system_profiler SPDisplaysDataType
+          xcrun swift -e 'import Metal; guard let device = MTLCreateSystemDefaultDevice() else { fatalError("No Metal device") }; print("Metal device:", device.name)'
       - uses: dtolnay/rust-toolchain@1.97.1
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: source -> target
-      - name: Install NASM for the existing Windows dependency
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          choco install nasm -y --no-progress
-          "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-      - name: Build exact PR source with its default screenshot feature
+      - name: Build pinned upstream source with its default screenshot feature
         working-directory: source
         run: cargo build --locked -p ferail-gpui --bin ferail-gpui
       - name: Capture the six independent preference profiles
@@ -74,7 +56,7 @@ jobs:
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          name: native-selection-${{ matrix.os }}
+          name: native-selection-macos-15-arm64
           path: source/screenshots/native-selection-qa/
           if-no-files-found: warn
           retention-days: 3
