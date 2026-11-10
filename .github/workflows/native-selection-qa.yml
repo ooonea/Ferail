@@ -1,0 +1,81 @@
+name: Native selection captures
+
+on:
+  push:
+    branches: [qa/selection-native-20261110]
+    paths: [.github/workflows/native-selection-qa.yml, .github/qa/native-selection-qa.py]
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    name: Native captures (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025]
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_BUILD_JOBS: 2
+      CARGO_PROFILE_DEV_DEBUG: 0
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: qa
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          repository: ooonea/Ferail
+          ref: 412812228654faa21d08031ad0e9566303f3739d
+          path: source
+          persist-credentials: false
+      - name: Read runner graphics and available storage
+        working-directory: source
+        run: |
+          test "$(git rev-parse HEAD)" = 412812228654faa21d08031ad0e9566303f3739d
+          actual_arch="$(python3 -c 'import platform; print(platform.machine())')"
+          echo "Native architecture: $actual_arch"
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            test "$(uname -m)" = arm64
+            test "$actual_arch" = arm64
+          else
+            test "$actual_arch" = AMD64
+          fi
+          df -h
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            xcodebuild -version
+            xcrun -f metal
+            system_profiler SPDisplaysDataType
+            xcrun swift -e 'import Metal; guard let device = MTLCreateSystemDefaultDevice() else { fatalError("No Metal device") }; print("Metal device:", device.name)'
+          else
+            powershell.exe -NoProfile -Command 'Get-CimInstance Win32_VideoController | Format-List Name,DriverVersion,AdapterCompatibility'
+          fi
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: source -> target
+      - name: Install NASM for the existing Windows dependency
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm -y --no-progress
+          "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Build exact PR source with its default screenshot feature
+        working-directory: source
+        run: cargo build --locked -p ferail-gpui --bin ferail-gpui
+      - name: Capture the six independent preference profiles
+        working-directory: source
+        run: python3 ../qa/.github/qa/native-selection-qa.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-selection-${{ matrix.os }}
+          path: source/screenshots/native-selection-qa/
+          if-no-files-found: warn
+          retention-days: 3
